@@ -1,10 +1,11 @@
+
 const express = require('express');
 const path = require('path');
 const bodyParser = require("body-parser");
 const fs = require('fs-extra');
 
 const app = express();
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 8000;
 const HOST = process.env.HOST || '0.0.0.0';
 
 // Set global path
@@ -32,7 +33,7 @@ async function cleanupOldSessions() {
         const sessionsDir = path.join(__dirname, 'sessions');
         const qrDir = path.join(__dirname, 'qr_sessions');
         const authDir = path.join(__dirname, 'auth_info_baileys');
-
+        
         // Clean up old session directories
         if (await fs.pathExists(sessionsDir)) {
             const sessions = await fs.readdir(sessionsDir);
@@ -95,14 +96,13 @@ async function initializeServer() {
     });
 
     // Import routes
-    const qrRoutes = require('./routes/qr');
-    const pairRoutes = require('./routes/pair');
-    const codeRoutes = require('./routes/code');
+    const qrRoute = require('./routes/qr');
+    const pairRoute = require('./routes/pair');
 
     // Routes with error handling
     app.use('/qr', (req, res, next) => {
         try {
-            qrRoutes(req, res, next);
+            qrRoute(req, res, next);
         } catch (error) {
             console.error('❌ QR route error:', error.message);
             next(error);
@@ -111,7 +111,7 @@ async function initializeServer() {
 
     app.use('/code', (req, res, next) => {
         try {
-            codeRoutes(req, res, next);
+            pairRoute(req, res, next);
         } catch (error) {
             console.error('❌ Pair route error:', error.message);
             next(error);
@@ -184,7 +184,7 @@ async function initializeServer() {
     app.use((err, req, res, next) => {
         console.error('❌ Global error handler:', err.message);
         console.error(err.stack);
-
+        
         if (!res.headersSent) {
             res.status(err.status || 500).json({
                 error: 'Internal server error',
@@ -197,7 +197,7 @@ async function initializeServer() {
 // Graceful shutdown
 function gracefulShutdown(signal) {
     console.log(`\n🔄 Received ${signal}. Starting graceful shutdown...`);
-
+    
     process.exit(0);
 }
 

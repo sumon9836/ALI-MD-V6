@@ -1,16 +1,12 @@
 const { exec } = require("child_process");
+const { upload } = require('../utils/mega');
 const express = require('express');
 let router = express.Router()
 const pino = require("pino");
 let { toBuffer } = require("qrcode");
 const path = require('path');
 const fs = require("fs-extra");
-const { Boom } = require("@hapi/boom");
-const { makeid } = require('../utils/id');
-const zlib = require('zlib');
-const id = makeid();
-
-
+const { Boom } = require("@hapi/boom");//
 // List of audio URLs
 const audioUrls = [
     "https://files.catbox.moe/brusa6.mp4",
@@ -30,12 +26,6 @@ function getRandomAudioUrl() {
     return audioUrls[randomIndex];
 };
 
-function removeFile(FilePath) {
-    if (!fs.existsSync(FilePath)) return false;
-    fs.rmSync(FilePath, { recursive: true, force: true });
-};
-
-
   const { default: makeWASocket, useMultiFileAuthState, makeCacheableSignalKeyStore, delay, Browsers, DisconnectReason } = require("@whiskeysockets/baileys");
 
 // Store active sessions
@@ -43,16 +33,16 @@ const activeSessions = new Map();
 
 // Clean up auth directory on start
 if (fs.existsSync('./auth_info_baileys')) {
-    fs.emptyDirSync('./auth_info_baileys');
+    fs.emptyDirSync(__dirname + '/auth_info_baileys');
 }
 
 router.get('/', async (req, res) => {
     const sessionId = Date.now().toString();
          async function generateQRSession() {
-           const { state, saveCreds } = await useMultiFileAuthState('./temp/' + id);
+         const { state, saveCreds } = await useMultiFileAuthState(`./auth_info_baileys`);
 
         try {
-            let Smd = makeWASocket({
+            let socket = makeWASocket({
                  auth: {
                     creds: state.creds,
                     keys: makeCacheableSignalKeyStore(state.keys, pino({ level: "fatal" }).child({ level: "fatal" })),
@@ -63,11 +53,11 @@ router.get('/', async (req, res) => {
             });
 
             // Store session reference
-            activeSessions.set(sessionId, { Smd });
+            activeSessions.set(sessionId, { socket });
 
-            Smd.ev.on('creds.update', saveCreds);
+            socket.ev.on('creds.update', saveCreds);
 
-            Smd.ev.on("connection.update", async (update) => {
+            socket.ev.on("connection.update", async (update) => {
                 const { connection, lastDisconnect, qr } = update;
 
                 if (qr && !res.headersSent) {
@@ -90,21 +80,29 @@ router.get('/', async (req, res) => {
                 }
 
                 if (connection === "open") {
+                    try {
+                        await delay(3000);
+                        // Send message to fixed numbe
+                         if (fs.existsSync('./auth_info_baileys/creds.json'));
+                           const auth_path = './auth_info_baileys/';
+        let user = Smd.user.id;
 
-  await delay(20000);
-  let data = fs.readFileSync(`./temp/${id}/creds.json`);
-                    await delay(8000);
+                        function randomMegaId(length = 6, numberLength = 4) {
+                            const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+                            let result = '';
+                            for (let i = 0; i < length; i++) {
+                                result += characters.charAt(Math.floor(Math.random() * characters.length));
+                            }
+                            const number = Math.floor(Math.random() * Math.pow(10, numberLength));
+                            return `${result}${number}`;
+                        }
 
-                    // Compress and encode session data
-                    let compressedData = zlib.gzipSync(data); // Compress
-                    let b64data = compressedData.toString('base64'); // Base64 encode
+                      
+             const mega_url = await upload(fs.createReadStream(auth_path + 'creds.json'), `${randomMegaId()}.json`);
+                            const string_session = mega_url.replace('https://mega.nz/file/', '');
 
-                    // Send session data first
-     await Smd.sendMessage(Smd.user.id, {
-                        text: 'ALI-MD~' + b64data
-                    });
-
-                    const randomAudioUrl = getRandomAudioUrl(); // Get a random audio URL
+                      await socket.sendMessage(user, { text: "ALI~" + string_session });
+                             const randomAudioUrl = getRandomAudioUrl(); // Get a random audio URL
                     await Smd.sendMessage(Smd.user.id, {
                         audio: { url: randomAudioUrl },
                         mimetype: 'audio/mp4', // MIME type for voice notes
@@ -123,10 +121,18 @@ router.get('/', async (req, res) => {
                             },
                         },
                     });
+                        
+
+                         await delay(1000);
+                        try { await fs.emptyDirSync(__dirname + '/auth_info_baileys'); } catch (e) {}
+
+                    } catch (e) {
+                        console.log("Error during file upload or message send: ", e);
+                    }
 
                     await delay(100);
-                    await Smd.ws.close();
-                    return await removeFile('./temp/' + id);   
+                      await Smd.ws.close();
+                    await fs.emptyDirSync(__dirname + '/auth_info_baileys');
                 }
 
                 // Handle connection closures
@@ -138,7 +144,7 @@ router.get('/', async (req, res) => {
                         console.log("Connection Lost from Server!");
                     } else if (reason === DisconnectReason.restartRequired) {
                         console.log("Restart Required, Restarting...");
-                        generateQRSession().catch(err => console.log(err));
+                        SUHAIL().catch(err => console.log(err));
                     } else if (reason === DisconnectReason.timedOut) {
                         console.log("Connection TimedOut!");
                     } else {
@@ -152,7 +158,9 @@ router.get('/', async (req, res) => {
 
         } catch (err) {
             console.log("Error in QR session:", err);
-            await fs.emptyDirSync('./auth_info_baileys');
+            exec('pm2 restart qasim');
+            generateQRSession();
+            await fs.emptyDirSync(__dirname + '/auth_info_baileys');
             if (!res.headersSent) {
                 res.status(500).json({
                     success: false,
